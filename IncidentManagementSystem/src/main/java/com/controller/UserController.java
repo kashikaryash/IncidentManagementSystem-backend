@@ -50,7 +50,7 @@ public ResponseEntity<?> login(@RequestBody LoginRequest request, HttpServletRes
         // Send JSESSIONID cookie manually (for cross-site)
         ResponseCookie cookie = ResponseCookie.from("JSESSIONID", sessionId)
                 .httpOnly(true)
-                .secure(false)   // true ONLY for https
+                .secure(true)   // true ONLY for https
                 .path("/")
                 .sameSite("None")   // REQUIRED for cross-site cookie
                 .build();
