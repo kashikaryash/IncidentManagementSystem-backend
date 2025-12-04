@@ -23,7 +23,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 
 @RestController
-@CrossOrigin(origins = { "http://localhost:5173", "http://127.0.0.1:5173" }, allowCredentials = "true")
+@CrossOrigin(origins = { "https://incident-management-frontend.vercel.app" }, allowCredentials = "true")
 @RequestMapping("/api/users")
 public class UserController {
 	

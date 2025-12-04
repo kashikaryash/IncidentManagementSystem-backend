@@ -78,7 +78,7 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
 
         config.setAllowedOrigins(List.of(
-            "https://incident-management-frontend.vercel.app/",
+            "https://incident-management-frontend.vercel.app",
             "http://127.0.0.1:5173",
             "http://localhost:3000"
         ));

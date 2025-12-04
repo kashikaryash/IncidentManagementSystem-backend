@@ -12,7 +12,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/categories")
-@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
+@CrossOrigin(origins = "https://incident-management-frontend.vercel.app", allowCredentials = "true")
 public class CategoryController {
 
     private final CategoryService categoryService;
