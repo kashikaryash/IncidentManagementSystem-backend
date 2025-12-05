@@ -9,6 +9,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.dto.admin.CreateUserRequest;
 import com.dto.user.LoginRequest;
@@ -35,30 +37,44 @@ public class UserController {
         return ResponseEntity.status(HttpStatus.CREATED).body(savedUser);
     }
 	
-    @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest request, HttpServletResponse response, HttpSession session) {
-        try {
-            LoginResponse loginResponse = userService.loginUser(request.getUsername(), request.getPassword());
-            session.setAttribute("user", loginResponse);
-            String sessionId = session.getId();
+	// Inside UserController.java
 
-            ResponseCookie cookie = ResponseCookie.from("JSESSIONID", sessionId)
-                .httpOnly(true)
-                .secure(true)
-                .path("/")
-                .sameSite("None")
-                .build();
+	@PostMapping("/login")
+	public ResponseEntity<?> login(@RequestBody LoginRequest request, HttpServletResponse response, HttpSession session) {
+	    try {
+	        LoginResponse loginResponse = userService.loginUser(request.getUsername(), request.getPassword());
 
-            return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, cookie.toString())
-                .body(loginResponse);
+	        // ⭐️ NEW FIX: Manually authenticate the user and add them to the Spring Security Context
+	        // This is necessary because you are not using Spring's default form login.
+	        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+	            loginResponse.getUsername(), // Principal (username or user object)
+	            null, // Credentials (null after successful auth)
+	            List.of(() -> "ROLE_" + loginResponse.getRole()) // Authorities
+	        );
+	        SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        } catch (RuntimeException e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
-        }
-    }
+	        // store user in session (keep for your current controller logic)
+	        session.setAttribute("user", loginResponse);
+
+	        // ... rest of your code for setting the JSESSIONID cookie remains the same ...
+	        
+	        String sessionId = session.getId();
+
+	        ResponseCookie cookie = ResponseCookie.from("JSESSIONID", sessionId)
+	            .httpOnly(true)
+	            .secure(true)
+	            .path("/")
+	            .sameSite("None")
+	            .build();
+
+	        return ResponseEntity.ok()
+	            .header(HttpHeaders.SET_COOKIE, cookie.toString())
+	            .body(loginResponse);
+
+	    } catch (RuntimeException e) {
+	    	return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+	    }
+	}
 
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpSession session) {
