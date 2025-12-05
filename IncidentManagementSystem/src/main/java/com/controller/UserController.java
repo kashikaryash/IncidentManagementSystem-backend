@@ -11,6 +11,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import com.dto.admin.CreateUserRequest;
 import com.dto.user.LoginRequest;
@@ -27,154 +29,148 @@ import org.springframework.http.ResponseCookie;
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
-	
+
 	@Autowired
 	private UserService userService;
-	
+
 	@PostMapping("/createUser")
-    public ResponseEntity<User> createUser(@RequestBody CreateUserRequest request) {
-        User savedUser = userService.createUser(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(savedUser);
-    }
-	
-	// Inside UserController.java
-
-	@PostMapping("/login")
-	public ResponseEntity<?> login(@RequestBody LoginRequest request, HttpServletResponse response, HttpSession session) {
-	    try {
-	        LoginResponse loginResponse = userService.loginUser(request.getUsername(), request.getPassword());
-
-	        // ⭐️ NEW FIX: Manually authenticate the user and add them to the Spring Security Context
-	        // This is necessary because you are not using Spring's default form login.
-	        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-	            loginResponse.getUsername(), // Principal (username or user object)
-	            null, // Credentials (null after successful auth)
-	            List.of(() -> "ROLE_" + loginResponse.getRole()) // Authorities
-	        );
-	        SecurityContextHolder.getContext().setAuthentication(authentication);
-
-	        // store user in session (keep for your current controller logic)
-	        session.setAttribute("user", loginResponse);
-
-	        // ... rest of your code for setting the JSESSIONID cookie remains the same ...
-	        
-	        String sessionId = session.getId();
-
-	        ResponseCookie cookie = ResponseCookie.from("JSESSIONID", sessionId)
-	            .httpOnly(true)
-	            .secure(true)
-	            .path("/")
-	            .sameSite("None")
-	            .build();
-
-	        return ResponseEntity.ok()
-	            .header(HttpHeaders.SET_COOKIE, cookie.toString())
-	            .body(loginResponse);
-
-	    } catch (RuntimeException e) {
-	    	return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
-	    }
+	public ResponseEntity<User> createUser(@RequestBody CreateUserRequest request) {
+		User savedUser = userService.createUser(request);
+		return ResponseEntity.status(HttpStatus.CREATED).body(savedUser);
 	}
 
-    @PostMapping("/logout")
-    public ResponseEntity<?> logout(HttpSession session) {
-        session.invalidate();
-        return ResponseEntity.ok("Logged out successfully");
-    }
-	
-    @PutMapping("/assign-role")
-    public ResponseEntity<?> assignRoleToUser(@RequestParam Long userId, @RequestParam Long roleId) {
-        try {
-            userService.assignRole(userId, roleId);
-            Map<String, String> response = new HashMap<>();
-            response.put("message", "Role assigned successfully");
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("error", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        }
-    }
+	@PostMapping("/login")
+	public ResponseEntity<?> login(@RequestBody LoginRequest request, HttpServletResponse response,
+			HttpSession session) {
+		try {
+			LoginResponse loginResponse = userService.loginUser(request.getUsername(), request.getPassword());
 
-    @GetMapping("/getAllUsers")
-    public ResponseEntity<List<User>> getAllUsers() {
-        List<User> users = userService.getAllUsers();
-        return ResponseEntity.ok(users);
-    }
+			List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + loginResponse.getRole()));
 
-    @GetMapping("/dropdown")
-    public ResponseEntity<List<User>> getUsersForDropdown() {
-        List<User> users = userService.findByRoleName("ANALYST");
-        return ResponseEntity.ok(users != null ? users : Collections.emptyList());
-    }
+			UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+					loginResponse.getUsername(),
+					null,
+					authorities 
+			);
+			SecurityContextHolder.getContext().setAuthentication(authentication);
 
-    @PutMapping("/update")
-    public ResponseEntity<User> updateUser(@RequestBody User updatedUser) {
-        User user = userService.updateUser(updatedUser);
-        return ResponseEntity.ok(user);
-    }
-	
-    @DeleteMapping("/delete")
-    public ResponseEntity<String> deleteUser(@RequestParam Long userId) {
-        userService.deleteUser(userId);
-        return ResponseEntity.ok("User deleted successfully");
-    }
-	
-    @PostMapping("/forgot-password")
-    public ResponseEntity<String> forgotPassword(@RequestParam String email) {
-        userService.sendPasswordResetOTP(email);
-        return ResponseEntity.ok("OTP sent to your email.");
-    }
-	
-    @PostMapping("/reset-password")
-    public ResponseEntity<String> resetPassword(@RequestParam String token, @RequestParam String newPassword) {
-        userService.resetPassword(token, newPassword);
-        return ResponseEntity.ok("Password has been reset.");
-    }
-	
-    @PostMapping("/forgot-username")
-    public ResponseEntity<String> forgotUsername(@RequestParam String email) {
-        try {
-            userService.sendUsernameToEmail(email);
-            return ResponseEntity.ok("Your username has been sent to your registered email.");
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
-        }
-    }
-	
-    @GetMapping("/findByName")
-    public ResponseEntity<User> findByName(@RequestParam String name) {
-        try {
-            User user = userService.findByName(name);
-            return ResponseEntity.ok(user);
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        }
-    }
-	
-    @GetMapping("/findAllByName")
-    public ResponseEntity<List<User>> findAllByName(@RequestParam String name) {
-        List<User> users = userService.findAllByName(name);
-        if (users.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        }
-        return ResponseEntity.ok(users);
-    }
+			session.setAttribute("SPRING_SECURITY_CONTEXT", SecurityContextHolder.getContext());
 
-    @GetMapping("/analysts")
-    public ResponseEntity<List<User>> getAllAnalysts() {
-        List<User> analysts = userService.getAllAnalystUsers(); 
-        return ResponseEntity.ok(analysts != null ? analysts : Collections.emptyList());
-    }
+			session.setAttribute("user", loginResponse);
 
-    @GetMapping("/me")
-    public ResponseEntity<?> getCurrentUser(HttpSession session) {
-        LoginResponse user = (LoginResponse) session.getAttribute("user");
+			String sessionId = session.getId();
 
-        if (user == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not logged in");
-        }
+			ResponseCookie cookie = ResponseCookie.from("JSESSIONID", sessionId).httpOnly(true).secure(true).path("/")
+					.sameSite("None").build();
 
-        return ResponseEntity.ok(user);
-    }
+			return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE, cookie.toString()).body(loginResponse);
+
+		} catch (RuntimeException e) {
+			Map<String, String> errorMap = new HashMap<>();
+			errorMap.put("message", e.getMessage());
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
+		}
+	}
+
+	@PostMapping("/logout")
+	public ResponseEntity<?> logout(HttpSession session) {
+		session.invalidate();
+		return ResponseEntity.ok("Logged out successfully");
+	}
+
+	@PutMapping("/assign-role")
+	public ResponseEntity<?> assignRoleToUser(@RequestParam Long userId, @RequestParam Long roleId) {
+		try {
+			userService.assignRole(userId, roleId);
+			Map<String, String> response = new HashMap<>();
+			response.put("message", "Role assigned successfully");
+			return ResponseEntity.ok(response);
+		} catch (Exception e) {
+			Map<String, String> error = new HashMap<>();
+			error.put("error", e.getMessage());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+		}
+	}
+
+	@GetMapping("/getAllUsers")
+	public ResponseEntity<List<User>> getAllUsers() {
+		List<User> users = userService.getAllUsers();
+		return ResponseEntity.ok(users);
+	}
+
+	@GetMapping("/dropdown")
+	public ResponseEntity<List<User>> getUsersForDropdown() {
+		List<User> users = userService.findByRoleName("ANALYST");
+		return ResponseEntity.ok(users != null ? users : Collections.emptyList());
+	}
+
+	@PutMapping("/update")
+	public ResponseEntity<User> updateUser(@RequestBody User updatedUser) {
+		User user = userService.updateUser(updatedUser);
+		return ResponseEntity.ok(user);
+	}
+
+	@DeleteMapping("/delete")
+	public ResponseEntity<String> deleteUser(@RequestParam Long userId) {
+		userService.deleteUser(userId);
+		return ResponseEntity.ok("User deleted successfully");
+	}
+
+	@PostMapping("/forgot-password")
+	public ResponseEntity<String> forgotPassword(@RequestParam String email) {
+		userService.sendPasswordResetOTP(email);
+		return ResponseEntity.ok("OTP sent to your email.");
+	}
+
+	@PostMapping("/reset-password")
+	public ResponseEntity<String> resetPassword(@RequestParam String token, @RequestParam String newPassword) {
+		userService.resetPassword(token, newPassword);
+		return ResponseEntity.ok("Password has been reset.");
+	}
+
+	@PostMapping("/forgot-username")
+	public ResponseEntity<String> forgotUsername(@RequestParam String email) {
+		try {
+			userService.sendUsernameToEmail(email);
+			return ResponseEntity.ok("Your username has been sent to your registered email.");
+		} catch (RuntimeException e) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+		}
+	}
+
+	@GetMapping("/findByName")
+	public ResponseEntity<User> findByName(@RequestParam String name) {
+		try {
+			User user = userService.findByName(name);
+			return ResponseEntity.ok(user);
+		} catch (RuntimeException e) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+		}
+	}
+
+	@GetMapping("/findAllByName")
+	public ResponseEntity<List<User>> findAllByName(@RequestParam String name) {
+		List<User> users = userService.findAllByName(name);
+		if (users.isEmpty()) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+		}
+		return ResponseEntity.ok(users);
+	}
+
+	@GetMapping("/analysts")
+	public ResponseEntity<List<User>> getAllAnalysts() {
+		List<User> analysts = userService.getAllAnalystUsers();
+		return ResponseEntity.ok(analysts != null ? analysts : Collections.emptyList());
+	}
+
+	@GetMapping("/me")
+	public ResponseEntity<?> getCurrentUser(HttpSession session) {
+		LoginResponse user = (LoginResponse) session.getAttribute("user");
+
+		if (user == null) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not logged in");
+		}
+
+		return ResponseEntity.ok(user);
+	}
 }
