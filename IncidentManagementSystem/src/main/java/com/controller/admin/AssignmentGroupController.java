@@ -9,7 +9,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/assignment-groups")
-@CrossOrigin(origins = "https://incident-management-frontend.vercel.app", allowCredentials = "true")
 public class AssignmentGroupController {
 
     private final AssignmentGroupRepository repository;

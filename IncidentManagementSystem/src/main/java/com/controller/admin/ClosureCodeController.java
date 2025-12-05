@@ -16,7 +16,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/closure-codes")
-@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
 public class ClosureCodeController {
 
     private final ClosureCodeService service;

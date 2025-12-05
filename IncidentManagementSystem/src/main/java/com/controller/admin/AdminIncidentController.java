@@ -12,7 +12,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/incidents")
-@CrossOrigin(origins = "https://incident-management-frontend.vercel.app", allowCredentials = "true")
 public class AdminIncidentController {
 
     private final AdminIncidentService adminIncidentService;

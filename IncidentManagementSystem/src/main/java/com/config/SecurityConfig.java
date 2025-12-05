@@ -11,7 +11,6 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.cors.CorsConfigurationSource;
-
 import java.util.List;
 
 @Configuration
@@ -21,73 +20,89 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
-            // 1. CORS Configuration (CRITICAL for Vercel/Railway cross-site)
+            // 1. CORS Configuration: Use the centralized bean
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            // CSRF protection must be disabled for stateless APIs or APIs managed by cookies 
+            // from a different domain, especially when using session cookies.
             .csrf(csrf -> csrf.disable())
 
-            // 2. Authorization Rules
+            // 2. Authorization Rules (Ordered from most specific to general)
             .authorizeHttpRequests(auth -> auth
-                // Allow OPTIONS pre-flight requests and public API paths
+                // Allow OPTIONS pre-flight requests globally
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                
+                // Public/Unsecured endpoints
                 .requestMatchers("/error", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                
-                // ⭐️ FIX: Explicitly permit only the login and create user POST calls
                 .requestMatchers(HttpMethod.POST, "/api/users/login").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/users/createUser").permitAll() 
+                .requestMatchers(HttpMethod.POST, "/api/users/createUser").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/users/forgot-password").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/users/forgot-username").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/users/reset-password").permitAll()
                 
-                // ⭐️ FIX: Require authentication for ALL other /api/users/* requests (including /me)
-                .requestMatchers("/api/users/**").authenticated() // <-- This now forces session check
-                
-                // Require authentication for all other protected paths
-                .requestMatchers(
-                    "/api/config/**",
-                    "/api/categories/**",
-                    "/api/workgroups/**",
-                    "/api/incidents/**",
-                    "/api/admin/**",
-                    // ... list all other protected endpoints here ...
-                    "/api/priorities/**"
-                ).authenticated()
+                // Endpoint grouping based on your controllers
+                .requestMatchers("/api/admin/**").authenticated() // ADMIN paths
+                .requestMatchers("/api/users/**").authenticated() // All remaining USER paths (/me, /getAllUsers, etc.)
+                .requestMatchers("/api/incidents/**").authenticated() // All INCIDENT paths
+                .requestMatchers("/api/workgroups/**").authenticated()
+                .requestMatchers("/api/roles/**").authenticated()
+                .requestMatchers("/api/resolution-codes/**").authenticated()
+                .requestMatchers("/api/pending-reasons/**").authenticated()
+                .requestMatchers("/api/config/**").authenticated()
+                .requestMatchers("/api/impacts/**").authenticated()
+                .requestMatchers("/api/classifications/**").authenticated()
+                .requestMatchers("/api/assignment-groups/**").authenticated()
 
                 // Default fallback: any other request must be authenticated
                 .anyRequest().authenticated()
             )
-            .formLogin(form -> form.disable())
-            .httpBasic(httpBasic -> httpBasic.disable())
             
             // 3. Session Management
             .sessionManagement(sess -> sess
-                .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED) // Use session
+                // Use session as required by the application flow
+                .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED) 
             )
-            // Send 401 instead of 403 for unauthenticated users
+            
+            // Standard form and http basic auth are not used, so disable them
+            .formLogin(form -> form.disable())
+            .httpBasic(httpBasic -> httpBasic.disable())
+            .anonymous(anon -> anon.disable())
+
+            // Exception Handling to send 401 for unauthenticated users
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((request, response, authException) -> {
                     response.sendError(401, "Unauthorized: Please login first");
                 })
-            )
-            .anonymous(anon -> anon.disable());
+            );
 
         return http.build();
     }
+
+    // ----------------------------------------------------------------------
+    // CORS Configuration Bean
+    // ----------------------------------------------------------------------
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // Ensure the Vercel domain is listed
+        // 🔑 CRITICAL: List your frontend origins (Vercel and local)
         config.setAllowedOrigins(List.of(
             "https://incident-management-frontend.vercel.app", 
-            "http://127.0.0.1:5173", 
-            "http://localhost:3000"
+            "http://127.0.0.1:5173", // Local testing
+            "http://localhost:3000" // Local testing
         ));
 
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        // Allow all necessary methods
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+        
+        // Allow all headers
         config.setAllowedHeaders(List.of("*"));
         
-        // 🔑 CRITICAL: This allows the browser to send cookies (JSESSIONID)
+        // 🔑 CRITICAL: This allows the browser to send cookies (JSESSIONID) cross-origin
         config.setAllowCredentials(true); 
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        // Apply this configuration to ALL paths
         source.registerCorsConfiguration("/**", config);
 
         return source;
