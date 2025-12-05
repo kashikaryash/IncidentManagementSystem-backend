@@ -25,16 +25,14 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
 
             .authorizeHttpRequests(auth -> auth
-                // Keep all your existing request matchers
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(
                     "/error",
                     "/swagger-ui/**",
-                    "/swagger-resources/**",
-                    "/v3/api-docs/**",
-                    "/webjars/**"
+                    "/v3/api-docs/**"
                 ).permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/incidents/create-with-files").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/users/login").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/users/createUser").permitAll()
                 .requestMatchers(
                     "/api/users/**",
                     "/api/config/**",
@@ -51,9 +49,7 @@ public class SecurityConfig {
                     "/api/priorities/**",
                     "/api/urgencies/**",
                     "/api/impacts/**"
-                ).permitAll()
-                // Require authentication specifically for creating incidents with files
-             
+                ).authenticated()
                 .anyRequest().authenticated()
             )
             .formLogin(form -> form.disable())
@@ -61,13 +57,11 @@ public class SecurityConfig {
             .sessionManagement(sess -> sess
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
             )
-            // Return 401 instead of 403 for unauthenticated users
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((request, response, authException) -> {
                     response.sendError(401, "Unauthorized: Please login first");
                 })
             )
-            // Disable anonymous user creation
             .anonymous(anon -> anon.disable());
 
         return http.build();

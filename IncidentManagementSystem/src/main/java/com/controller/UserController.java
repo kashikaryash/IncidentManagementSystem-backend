@@ -23,7 +23,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 
 @RestController
-@CrossOrigin(origins = { "https://incident-management-frontend.vercel.app" }, allowCredentials = "true")
 @RequestMapping("/api/users")
 public class UserController {
 	
@@ -37,35 +36,29 @@ public class UserController {
     }
 	
     @PostMapping("/login")
-public ResponseEntity<?> login(@RequestBody LoginRequest request, HttpServletResponse response, HttpSession session) {
-    try {
-        LoginResponse loginResponse = userService.loginUser(request.getUsername(), request.getPassword());
+    public ResponseEntity<?> login(@RequestBody LoginRequest request, HttpServletResponse response, HttpSession session) {
+        try {
+            LoginResponse loginResponse = userService.loginUser(request.getUsername(), request.getPassword());
+            session.setAttribute("user", loginResponse);
+            String sessionId = session.getId();
 
-        // store user in session
-        session.setAttribute("user", loginResponse);
-
-        // session id
-        String sessionId = session.getId();
-
-        // Send JSESSIONID cookie manually (for cross-site)
-        ResponseCookie cookie = ResponseCookie.from("JSESSIONID", sessionId)
+            ResponseCookie cookie = ResponseCookie.from("JSESSIONID", sessionId)
                 .httpOnly(true)
-                .secure(true)   // true ONLY for https
+                .secure(true)
                 .path("/")
-                .sameSite("None")   // REQUIRED for cross-site cookie
+                .sameSite("None")
                 .build();
 
-        return ResponseEntity.ok()
+            return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .body(loginResponse);
 
-    } catch (RuntimeException e) {
-        Map<String, String> error = new HashMap<>();
-        error.put("message", e.getMessage());
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        } catch (RuntimeException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        }
     }
-}
-
 
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpSession session) {
@@ -77,7 +70,6 @@ public ResponseEntity<?> login(@RequestBody LoginRequest request, HttpServletRes
     public ResponseEntity<?> assignRoleToUser(@RequestParam Long userId, @RequestParam Long roleId) {
         try {
             userService.assignRole(userId, roleId);
-
             Map<String, String> response = new HashMap<>();
             response.put("message", "Role assigned successfully");
             return ResponseEntity.ok(response);
@@ -96,7 +88,7 @@ public ResponseEntity<?> login(@RequestBody LoginRequest request, HttpServletRes
 
     @GetMapping("/dropdown")
     public ResponseEntity<List<User>> getUsersForDropdown() {
-        List<User> users = userService.findByRoleName("ANALYST"); 
+        List<User> users = userService.findByRoleName("ANALYST");
         return ResponseEntity.ok(users != null ? users : Collections.emptyList());
     }
 
@@ -152,13 +144,13 @@ public ResponseEntity<?> login(@RequestBody LoginRequest request, HttpServletRes
         }
         return ResponseEntity.ok(users);
     }
-	
-    @GetMapping("/getAnalysts")
-    public ResponseEntity<List<User>> getAnalysts() {
-        List<User> analysts = userService.findByRoleName("ANALYST");
+
+    @GetMapping("/analysts")
+    public ResponseEntity<List<User>> getAllAnalysts() {
+        List<User> analysts = userService.getAllAnalystUsers(); 
         return ResponseEntity.ok(analysts != null ? analysts : Collections.emptyList());
     }
-    	
+
     @GetMapping("/me")
     public ResponseEntity<?> getCurrentUser(HttpSession session) {
         LoginResponse user = (LoginResponse) session.getAttribute("user");
@@ -168,11 +160,5 @@ public ResponseEntity<?> login(@RequestBody LoginRequest request, HttpServletRes
         }
 
         return ResponseEntity.ok(user);
-    }
-
-    @GetMapping("/analysts")
-    public ResponseEntity<List<User>> getAllAnalysts() {
-        List<User> analysts = userService.getAllAnalystUsers();
-        return ResponseEntity.ok(analysts);
     }
 }
