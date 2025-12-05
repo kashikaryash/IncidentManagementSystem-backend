@@ -20,15 +20,16 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
-            // 1. CORS Configuration: Use the centralized bean
+            // 1. CORS Configuration (CRITICAL for filter chain ordering)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            // CSRF protection must be disabled for stateless APIs or APIs managed by cookies 
-            // from a different domain, especially when using session cookies.
+            
+            // CSRF must be disabled for cross-site cookie-based communication
             .csrf(csrf -> csrf.disable())
 
             // 2. Authorization Rules (Ordered from most specific to general)
             .authorizeHttpRequests(auth -> auth
-                // Allow OPTIONS pre-flight requests globally
+                
+                // Allow OPTIONS pre-flight requests globally (must be first!)
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 
                 // Public/Unsecured endpoints
@@ -39,10 +40,10 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/users/forgot-username").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/users/reset-password").permitAll()
                 
-                // Endpoint grouping based on your controllers
-                .requestMatchers("/api/admin/**").authenticated() // ADMIN paths
-                .requestMatchers("/api/users/**").authenticated() // All remaining USER paths (/me, /getAllUsers, etc.)
-                .requestMatchers("/api/incidents/**").authenticated() // All INCIDENT paths
+                // Authenticated Endpoint Grouping (All other requests must be logged in)
+                .requestMatchers("/api/admin/**").authenticated() 
+                .requestMatchers("/api/users/**").authenticated() 
+                .requestMatchers("/api/incidents/**").authenticated()
                 .requestMatchers("/api/workgroups/**").authenticated()
                 .requestMatchers("/api/roles/**").authenticated()
                 .requestMatchers("/api/resolution-codes/**").authenticated()
@@ -58,16 +59,16 @@ public class SecurityConfig {
             
             // 3. Session Management
             .sessionManagement(sess -> sess
-                // Use session as required by the application flow
+                // Use session as required by JSESSIONID
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED) 
             )
             
-            // Standard form and http basic auth are not used, so disable them
+            // Disable default authentication mechanisms not being used
             .formLogin(form -> form.disable())
             .httpBasic(httpBasic -> httpBasic.disable())
             .anonymous(anon -> anon.disable())
 
-            // Exception Handling to send 401 for unauthenticated users
+            // Exception Handling: Send 401 for unauthenticated users
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((request, response, authException) -> {
                     response.sendError(401, "Unauthorized: Please login first");
@@ -78,7 +79,7 @@ public class SecurityConfig {
     }
 
     // ----------------------------------------------------------------------
-    // CORS Configuration Bean
+    // CORS Configuration Bean: Centralized and Secured
     // ----------------------------------------------------------------------
 
     @Bean
@@ -88,17 +89,17 @@ public class SecurityConfig {
         // 🔑 CRITICAL: List your frontend origins (Vercel and local)
         config.setAllowedOrigins(List.of(
             "https://incident-management-frontend.vercel.app", 
-            "http://127.0.0.1:5173", // Local testing
-            "http://localhost:3000" // Local testing
+            "http://127.0.0.1:5173", 
+            "http://localhost:3000"
         ));
 
-        // Allow all necessary methods
+        // Allow all necessary methods for both preflight and actual requests
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         
         // Allow all headers
         config.setAllowedHeaders(List.of("*"));
         
-        // 🔑 CRITICAL: This allows the browser to send cookies (JSESSIONID) cross-origin
+        // 🔑 CRITICAL: This allows the browser to send the JSESSIONID cookie cross-origin
         config.setAllowCredentials(true); 
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
