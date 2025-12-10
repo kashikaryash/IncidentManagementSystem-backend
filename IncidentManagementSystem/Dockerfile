@@ -1,24 +1,32 @@
-# Stage 1: Build the JAR file using Maven with Java 17 JDK
-# CRITICAL FIX: Replaced 'maven:3.9.6-openjdk-17' with the stable 'maven:3.9.6-jdk-17'
-FROM maven:3.9.6-jdk-17 AS build
+# ---------------------------------------------------------
+# Stage 1: Build the JAR file using Maven + Java 17
+# ---------------------------------------------------------
+FROM maven:3.9.6-eclipse-temurin-17 AS build
+
 WORKDIR /app
-# Copy the entire project context
+
+# Copy project files
 COPY . .
-# Build the executable JAR, skipping tests for faster deployment
+
+# Build the Spring Boot JAR (skip tests for faster builds)
 RUN mvn clean package -DskipTests
 
-# Stage 2: Create the final, lean runtime image using only JRE 17
-# This line was fixed previously and is now stable.
+
+# ---------------------------------------------------------
+# Stage 2: Run the application using a minimal JRE 17 image
+# ---------------------------------------------------------
 FROM eclipse-temurin:17-jre-jammy
+
 WORKDIR /app
 
-# Expose the default Spring Boot port (8080) - optional, but good practice
+# Spring Boot default port (optional)
 EXPOSE 8080
 
-# Define the exact JAR file name based on your pom.xml (artifactId-version.jar)
+# Your JAR file name — automatically pulled from build stage
 ARG JAR_FILE=target/IncidentManagementSystem-0.0.1-SNAPSHOT.jar
-# Copy the compiled JAR from the 'build' stage into the final image
+
+# Copy the built JAR into this image
 COPY --from=build ${JAR_FILE} app.jar
 
-# The entry point command to run the Spring Boot application
+# Command to run the Spring Boot application
 ENTRYPOINT ["java", "-jar", "app.jar"]
