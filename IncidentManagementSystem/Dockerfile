@@ -1,6 +1,6 @@
 # Stage 1: Build the JAR file using Maven with Java 17 JDK
-# Using the stable Maven image which includes a working JDK 17
-FROM maven:3.9.6-openjdk-17 AS build
+# CRITICAL FIX: Replaced 'maven:3.9.6-openjdk-17' with the stable 'maven:3.9.6-jdk-17'
+FROM maven:3.9.6-jdk-17 AS build
 WORKDIR /app
 # Copy the entire project context
 COPY . .
@@ -8,7 +8,7 @@ COPY . .
 RUN mvn clean package -DskipTests
 
 # Stage 2: Create the final, lean runtime image using only JRE 17
-# CRITICAL FIX: Replaced deprecated 'openjdk:17-jre-slim' with 'eclipse-temurin:17-jre-jammy'
+# This line was fixed previously and is now stable.
 FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 
